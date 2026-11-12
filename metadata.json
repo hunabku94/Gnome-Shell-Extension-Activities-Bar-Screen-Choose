@@ -1,0 +1,9 @@
+{
+  "uuid": "activities-bar-screen-choose@hunabku94.github.io",
+  "name": "Activities Bar Screen Choose",
+  "description": "Choose which screen displays the top bar (Activities bar) instead of being restricted to the primary screen.",
+  "shell-version": ["49", "50", "51"],
+  "settings-schema": "org.gnome.shell.extensions.activities-bar-screen-choose",
+  "url": "https://github.com/hunabku94/Gnome-Shell-Extension-Activities-Bar-Screen-Choose",
+  "version-name": "0.1.0"
+}

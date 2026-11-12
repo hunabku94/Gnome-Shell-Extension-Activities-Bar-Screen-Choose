@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.activities-bar-screen-choose"
+          path="/org/gnome/shell/extensions/activities-bar-screen-choose/">
+    <key name="monitor-connector" type="s">
+      <default>''</default>
+      <summary>Connector of the monitor showing the top bar</summary>
+      <description>Connector name (for example DP-1 or HDMI-A-1) of the monitor that should display the top bar. An empty value keeps the default behavior (primary monitor). If the chosen monitor is not connected, the top bar falls back to the primary monitor.</description>
+    </key>
+  </schema>
+</schemalist>
