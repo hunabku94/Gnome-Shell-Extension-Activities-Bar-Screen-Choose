@@ -1,48 +1,52 @@
 // extension.js
-// Attaches to : GNOME Shell (extension entry point, loaded by GNOME Shell itself)
+// Runs inside : GNOME Shell (entry point of the extension, loaded directly by the shell)
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 // #region Settings keys
-// GSettings key holding the connector name of the chosen monitor ('' = primary)
+// A GSettings key that records the selected monitor connector (an empty string
+// indicates the primary monitor).
 const SETTING_MONITOR_CONNECTOR = 'monitor-connector';
 // #endregion Settings keys
 
 export default class ActivitiesBarScreenChooseExtension extends Extension
 {
     // #region Fields
-    // GSettings instance of the extension (created in enable, released in disable)
+    // When the extension is activated, a GSettings instance is created and it is
+    // destroyed when the extension is deactivated.
     _settings = null;
 
-    // Signal id of the 'changed::monitor-connector' GSettings signal
+    // Handler ID for the GSettings 'changed::monitor-connector' notification
     _settingsChangedId = 0;
 
-    // Signal id of the layout manager 'monitors-changed' signal
+    // The handler ID for the 'monitors-changed' event in the layout manager
     _monitorsChangedId = 0;
 
-    // Signal id of the layout manager 'startup-complete' signal
+    // The handler ID for 'startup-complete' within the layout manager
     _startupCompleteId = 0;
     // #endregion Fields
 
     // #region Lifecycle
-    // Called by GNOME Shell when the extension is enabled
+    // Triggered by the shell each time the extension is enabled
     enable()
     {
         this._settings = this.getSettings();
 
-        // Re-apply when the user picks another monitor in the preferences
+        // Adjust the bar again if a different monitor is chosen in the preferences
+        // window.
         this._settingsChangedId = this._settings.connect(
             `changed::${SETTING_MONITOR_CONNECTOR}`,
             () => this._applyPanelMonitor());
 
-        // The layout manager emits this AFTER it has repositioned the panel on the
-        // primary monitor, so our handler always gets the last word
+        // This only triggers after the layout manager has returned the panel to the
+        // primary monitor, allowing our handler to override that placement.
         this._monitorsChangedId = Main.layoutManager.connect(
             'monitors-changed',
             () => this._applyPanelMonitor());
 
-        // When the extension is enabled during login, the shell is still starting up
+        // When we are activated upon logging in, the shell has not fully started
+        // yet.
         if (Main.layoutManager._startingUp)
         {
             this._startupCompleteId = Main.layoutManager.connect(
@@ -53,8 +57,8 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
         this._applyPanelMonitor();
     }
 
-    // Called by GNOME Shell when the extension is disabled. Must stay synchronous
-    // (GNOME Shell 51 throws if disable() is async)
+    // Triggered by the shell upon disabling the extension. Ensure it remains
+    // synchronous; GNOME Shell 51 will throw an error with an async disable().
     disable()
     {
         if (this._settingsChangedId)
@@ -75,7 +79,7 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
             this._startupCompleteId = 0;
         }
 
-        // Put the panel back where GNOME Shell wants it (primary monitor)
+        // Return the panel to its original position on the main display.
         this._movePanelToMonitor(Main.layoutManager.primaryMonitor);
 
         this._settings = null;
@@ -83,21 +87,22 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
     // #endregion Lifecycle
 
     // #region Panel placement
-    // Resolves the target monitor from the settings and moves the panel onto it
+    // Identifies the monitor the settings refer to and then positions the panel on
+    // it
     _applyPanelMonitor()
     {
         const target = this._resolveTargetMonitor();
         this._movePanelToMonitor(target);
     }
 
-    // Returns the monitor object (from Main.layoutManager.monitors) matching the
-    // saved connector, or the primary monitor when unset / not connected
+    // Returns the Main.layoutManager.monitors entry for the saved connector;
+    // defaults to the primary monitor if no entry is saved or if it's disconnected.
     _resolveTargetMonitor()
     {
         const primary = Main.layoutManager.primaryMonitor;
         const connector = this._settings.get_string(SETTING_MONITOR_CONNECTOR);
 
-        // Empty value = default behavior
+        // No stored data: keep the default behavior
         if (connector === '')
         {
             return primary;
@@ -105,7 +110,8 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
 
         const index = this._getMonitorIndexForConnector(connector);
 
-        // Connector not connected (or lookup failed): fall back to the primary monitor
+        // If the connector is not attached or the lookup fails, the system will
+        // revert to using the primary monitor.
         if (index < 0 || index >= Main.layoutManager.monitors.length)
         {
             return primary;
@@ -114,8 +120,9 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
         return Main.layoutManager.monitors[index];
     }
 
-    // Asks Mutter which monitor index is driven by the given connector.
-    // Returns -1 when the connector is unknown or the lookup is not possible
+    // Mutter is tasked with identifying the monitor index linked to the given
+    // connector; if the connector is unrecognized or the search fails, it outputs
+    // -1.
     _getMonitorIndexForConnector(connector)
     {
         try
@@ -125,14 +132,15 @@ export default class ActivitiesBarScreenChooseExtension extends Extension
         }
         catch (e)
         {
-            console.warn(`[${this.uuid}] Monitor lookup failed for connector "${connector}": ${e.message}`);
+            console.warn(`[${this.uuid}] Could not find a monitor for connector "${connector}": ${e.message}`);
             return -1;
         }
     }
 
-    // Moves and resizes the panel box (the container of Main.panel) onto a monitor.
-    // The layout manager tracks panelBox as chrome, so work-area struts and
-    // fullscreen handling follow automatically
+    // Adjusts the position and dimensions of panelBox (the parent of Main.panel) to
+    // match the monitor. Given that the layout manager considers panelBox as part
+    // of the chrome, work-area struts and fullscreen functionality handle
+    // themselves accordingly.
     _movePanelToMonitor(monitor)
     {
         const panelBox = Main.layoutManager.panelBox;

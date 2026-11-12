@@ -1,5 +1,5 @@
 // prefs.js
-// Attaches to : GNOME Extensions preferences window (runs in a separate process, not in GNOME Shell)
+// Runs inside : the GNOME Extensions preferences window (its own process, outside GNOME Shell)
 
 import Adw from 'gi://Adw';
 import Gdk from 'gi://Gdk';
@@ -8,28 +8,29 @@ import Gtk from 'gi://Gtk';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 // #region Settings keys
-// GSettings key holding the connector name of the chosen monitor ('' = primary)
+// A GSettings key that records the chosen monitor connector (an empty string
+// indicates the primary display).
 const SETTING_MONITOR_CONNECTOR = 'monitor-connector';
 // #endregion Settings keys
 
 export default class ActivitiesBarScreenChoosePreferences extends ExtensionPreferences
 {
     // #region Fields
-    // GSettings instance shared with the extension
+    // Settings object, the same schema the extension reads
     _settings = null;
 
-    // Combo row listing the available monitors
+    // A dropdown list displaying the available monitors to choose from
     _comboRow = null;
 
-    // Connector names, same order as the combo row entries ('' = default)
+    // Connector per drop-down entry, index for index (empty string is the default entry)
     _connectors = [];
 
-    // True while the combo row is being rebuilt (ignore selection signals)
+    // During the rebuild of the drop-down menu, selection events will be skipped.
     _isRebuilding = false;
     // #endregion Fields
 
     // #region Preferences window
-    // Called by GNOME Shell to build the preferences UI
+    // Triggered to fill the settings pane
     fillPreferencesWindow(window)
     {
         this._settings = this.getSettings();
@@ -54,11 +55,12 @@ export default class ActivitiesBarScreenChoosePreferences extends ExtensionPrefe
 
         this._comboRow.connect('notify::selected', () => this._onSelectionChanged());
 
-        // Keep the list up to date when screens are plugged / unplugged
+        // Update the entries whenever a screen is connected or disconnected.
         const monitors = Gdk.Display.get_default().get_monitors();
         const monitorsChangedId = monitors.connect('items-changed', () => this._rebuildMonitorList());
 
-        // Release the signal and our references when the window is closed
+        // When the window is closed, remove the signal handler and release the
+        // references we maintain.
         window.connect('close-request', () =>
         {
             monitors.disconnect(monitorsChangedId);
@@ -72,7 +74,7 @@ export default class ActivitiesBarScreenChoosePreferences extends ExtensionPrefe
     // #endregion Preferences window
 
     // #region Monitor list
-    // Rebuilds the combo row entries from the monitors currently connected
+    // Repopulates the dropdown with the monitors currently connected
     _rebuildMonitorList()
     {
         const savedConnector = this._settings.get_string(SETTING_MONITOR_CONNECTOR);
@@ -85,7 +87,7 @@ export default class ActivitiesBarScreenChoosePreferences extends ExtensionPrefe
             const monitor = monitors.get_item(i);
             const connector = monitor.get_connector();
 
-            // Skip monitors without a usable connector name
+            // Skip monitors displaying no connector name
             if (!connector)
             {
                 continue;
@@ -96,7 +98,8 @@ export default class ActivitiesBarScreenChoosePreferences extends ExtensionPrefe
             this._connectors.push(connector);
         }
 
-        // Keep the saved choice visible even if that screen is currently unplugged
+        // Continue to display the saved option even when the screen is disconnected
+        // at the time.
         if (savedConnector !== '' && !this._connectors.includes(savedConnector))
         {
             labels.push(`${savedConnector} (${_('not connected')})`);
@@ -109,7 +112,7 @@ export default class ActivitiesBarScreenChoosePreferences extends ExtensionPrefe
         this._isRebuilding = false;
     }
 
-    // Saves the connector matching the selected combo row entry
+    // Stores the connector that goes with the chosen drop-down entry
     _onSelectionChanged()
     {
         if (this._isRebuilding)
